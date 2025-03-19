@@ -1,0 +1,274 @@
+// schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 用户相关
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+model User {
+   id            String   @id @default(uuid())
+  code          String   @unique @db.Char(6)  // 6位登录码
+  nickname      String?  // 可选的昵称
+  role          Role     @default(STUDENT)
+  lastLoginAt   DateTime?
+  createdAt     DateTime @default(now())
+
+  // 关联
+  progress        ReadingProgress[]
+  chatRecords     ChatRecord[]
+  vocabulary      Vocabulary[]
+
+  @@index([code])
+  AIInteraction AIInteraction[]
+  AIUsageStats AIUsageStats[]
+  ReadingSession ReadingSession[]
+}
+
+// 文章相关
+model Article {
+  id             String   @id @default(uuid())
+  order       Int      @unique  // 添加这行，用于排序
+  title          String
+  content        String   @db.Text
+  contentHtml    String   @db.Text  // 新增字段，存储HTML格式的内容
+  level          Int
+  category       String
+  knowledgeBaseId String  // Dify知识库ID
+  botId          String   // Dify机器人ID
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // 关联
+  questions      Question[]
+  progress       ReadingProgress[]
+  chatRecords    ChatRecord[]
+  wordFrequency  WordFrequency[]
+
+  @@index([title])
+  @@index([level, category])
+  Vocabulary Vocabulary[]
+  ArticleScore ArticleScore[]
+  AIInteraction AIInteraction[]
+  ReadingSession ReadingSession[]
+}
+
+// 阅读进度
+model ReadingProgress {
+  id              String   @id @default(uuid())
+  progressPercent Int      @default(0)
+  lastReadAt      DateTime @default(now())
+  // 关联
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  articleId       String
+  article         Article  @relation(fields: [articleId], references: [id])
+  answers         AnswerRecord[]
+
+  @@unique([userId, articleId])
+  @@index([userId, lastReadAt])
+  StudyRound StudyRound[]
+  AIInteraction AIInteraction[]
+}
+
+// 对话记录
+model ChatRecord {
+  id        String   @id @default(uuid())
+  message   String   @db.Text
+  response  String   @db.Text
+  type      String   // translation, grammar, question, general
+  metadata  Json?    // 额外信息，如选中文本、位置等
+  createdAt DateTime @default(now())
+
+  // 关联
+  userId    String
+  user      User    @relation(fields: [userId], references: [id])
+  articleId String
+  article   Article @relation(fields: [articleId], references: [id])
+
+  @@index([userId, articleId, createdAt])
+}
+
+// 题目类型枚举
+enum QuestionType {
+  EXERCISE      // 练习题
+  SUPPLEMENTARY // 补充题
+}
+
+// 题目模型
+model Question {
+  id            String       @id @default(uuid())
+  articleId     String
+  article       Article      @relation(fields: [articleId], references: [id])
+  type          QuestionType
+  orderNumber   Int         // 题号(1-5)
+  content       String      @db.Text
+  options       Json?       // 如果是选择题，存储选项
+  answer        String      @db.Text
+  explanation   String      @db.Text
+  
+  // 补充题与练习题的映射关系
+  relatedQuestionId String?  // 相关联的题目ID
+  relatedQuestion   Question?  @relation("QuestionMapping", fields: [relatedQuestionId], references: [id])
+  mappedQuestions   Question[] @relation("QuestionMapping")
+
+  @@unique([articleId, type, orderNumber])  // 确保每篇文章的每种类型题目序号唯一
+  AnswerRecord AnswerRecord[]
+}
+
+// 阅读会话（一次完整的学习过程）
+model ReadingSession {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  startTime   DateTime @default(now())
+  endTime     DateTime?
+  status      String   @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, ABANDONED
+  
+  // 当前进度
+  currentRound     Int     @default(1)  // 当前轮次(1-4)
+  currentArticleId String? // 当前在读的文章ID
+  currentArticle   Article? @relation(fields: [currentArticleId], references: [id])
+  currentQuestionIndex Int? // 当前题目序号(1-5)
+  currentQuestionType QuestionType @default(EXERCISE)  
+  // 关联
+  rounds      StudyRound[]
+  
+  @@index([userId, startTime])
+  @@unique([userId, status])  // 添加唯一约束
+
+}
+
+// 学习轮次（每一轮的记录）
+model StudyRound {
+  id            String   @id @default(uuid())
+  sessionId     String
+  session       ReadingSession @relation(fields: [sessionId], references: [id])
+  roundNumber   Int      // 第几轮
+  startTime     DateTime @default(now())
+  endTime       DateTime?
+  totalScore    Int      @default(0)
+  
+  // 轮次状态
+  firstArticleCompleted  Boolean @default(false)
+  secondArticleCompleted Boolean @default(false)
+  
+  // 关联
+  answers       AnswerRecord[]
+  
+  @@unique([sessionId, roundNumber])
+  ReadingProgress ReadingProgress[]
+}
+
+// 答题记录
+model AnswerRecord {
+  id          String   @id @default(uuid())
+  roundId     String
+  round       StudyRound @relation(fields: [roundId], references: [id])
+  questionId  String
+  question    Question @relation(fields: [questionId], references: [id])
+  answer      String
+  isCorrect   Boolean
+  score       Int
+  answeredAt  DateTime @default(now())
+  
+  // 元数据
+  articleOrder Int     // 是第几篇文章(1或2)
+  attemptCount Int     @default(1) // 尝试次数
+  timeSpent    Int     // 答题用时(秒)
+  
+  @@index([roundId, answeredAt])
+  ReadingProgress ReadingProgress[]
+}
+
+
+// 词汇相关
+model Vocabulary {
+  id          String   @id @default(uuid())
+  word        String
+  context     String   @db.Text
+  reviewCount Int      @default(0)
+  addedAt     DateTime @default(now())
+
+  // 关联
+  userId      String
+  user        User    @relation(fields: [userId], references: [id])
+  articleId   String
+  article     Article @relation(fields: [articleId], references: [id])
+
+  @@index([userId, word])
+}
+
+model WordFrequency {
+  id        String @id @default(uuid())
+  word      String
+  frequency Int
+
+  // 关联
+  articleId String
+  article   Article @relation(fields: [articleId], references: [id])
+
+  @@index([articleId, frequency])
+}
+
+// 文章评分标准
+model ArticleScore {
+  id          String   @id @default(uuid())
+  articleId   String
+  article     Article  @relation(fields: [articleId], references: [id])
+  totalScore  Int     // 该文章总分
+  scoreRules  Json    // 各题分数分配规则
+}
+
+// AI功能类型
+enum AIFeatureType {
+  TRANSLATION
+  GRAMMAR
+  QUESTION_HINT
+  GENERAL_CHAT
+  VOCABULARY_HELP
+}
+
+// AI交互记录
+model AIInteraction {
+  id          String   @id @default(uuid())
+  featureType AIFeatureType
+  inputText   String   @db.Text
+  response    String   @db.Text
+  createdAt   DateTime @default(now())
+  metadata    Json?    // 额外上下文信息
+
+  // 关联
+  userId      String
+  user        User    @relation(fields: [userId], references: [id])
+  articleId   String
+  article     Article @relation(fields: [articleId], references: [id])
+  progressId  String
+  progress    ReadingProgress @relation(fields: [progressId], references: [id])
+
+  @@index([userId, featureType, createdAt])
+  @@index([progressId, featureType])
+}
+
+// AI使用统计
+model AIUsageStats {
+  id          String   @id @default(uuid())
+  featureType AIFeatureType
+  useCount    Int      @default(0)
+  lastUsedAt  DateTime @default(now())
+
+  // 关联
+  userId      String
+  user        User    @relation(fields: [userId], references: [id])
+  
+  @@unique([userId, featureType])
+}

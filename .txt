@@ -1,0 +1,7 @@
+常用测试命令
+
+重置数据库
+npx prisma migrate reset
+npx prisma generate
+
+npx prisma db seed
