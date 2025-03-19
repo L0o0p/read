@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { QuestionType } from '@prisma/client';
+import { Prisma, QuestionType } from '@prisma/client';
 @Injectable()
 export class ArticlesService {
   constructor(private prisma: PrismaService) { }
@@ -541,29 +541,124 @@ export class ArticlesService {
       updatedRound
     };
   }
-  async saveAllContent(sections: any, htmlContent: string) {
+  // async saveAllContent(sections: any, htmlContent: string) {
+  //   try {
+  //     // 1. 先保存文章
+  //     console.log('开始保存文章...');
+  //     const article = await this.prisma.article.create({
+  //       data: {
+  //         title: sections.title,
+  //         content: sections.article,
+  //         contentHtml: htmlContent,
+  //         level: 1,
+  //         category: 'reading',
+  //         order: await this.getNextArticleOrder(),
+  //         knowledgeBaseId: 'default',
+  //         botId: 'default',
+  //       }
+  //     });
+  //     console.log('文章保存成功，ID:', article.id);
+
+  //     // 2. 保存练习题
+  //     console.log('开始保存练习题...');
+  //     const exercisePromises = sections.exercises.map((question: any) =>
+  //       this.prisma.question.create({
+  //         data: {
+  //           articleId: article.id,
+  //           type: 'EXERCISE',
+  //           orderNumber: question.orderNumber,
+  //           content: question.content,
+  //           options: question.options,
+  //           answer: question.answer,
+  //           explanation: question.explanation
+  //         }
+  //       })
+  //     );
+  //     await Promise.all(exercisePromises);
+  //     console.log('练习题保存成功');
+
+  //     // 3. 保存跟踪练习
+  //     console.log('开始保存跟踪练习...');
+  //     const trackingPromises = sections.tracking.map((question: any) =>
+  //       this.prisma.question.create({
+  //         data: {
+  //           articleId: article.id,
+  //           type: 'SUPPLEMENTARY',
+  //           orderNumber: question.orderNumber,
+  //           content: question.content,
+  //           options: question.options,
+  //           answer: question.answer,
+  //           explanation: question.explanation
+  //         }
+  //       })
+  //     );
+  //     await Promise.all(trackingPromises);
+  //     console.log('跟踪练习保存成功');
+
+  //     // 4. 保存评分标准
+  //     console.log('开始保存评分标准...');
+  //     await this.prisma.articleScore.create({
+  //       data: {
+  //         articleId: article.id,
+  //         totalScore: 100,
+  //         scoreRules: {
+  //           exerciseQuestions: 10,
+  //           trackingQuestions: 10,
+  //           totalPossible: 100
+  //         }
+  //       }
+  //     });
+  //     console.log('评分标准保存成功');
+
+  //     return {
+  //       success: true,
+  //       articleId: article.id,
+  //       message: '文章和题目上传成功',
+  //       statistics: {
+  //         exerciseCount: sections.exercises.length,
+  //         trackingCount: sections.tracking.length
+  //       }
+  //     };
+
+  //   } catch (error) {
+  //     console.error('数据保存失败:', error);
+  //     throw new BadRequestException(`保存数据失败: ${error.message}`);
+  //   }
+  // }
+
+  async saveAllContent(
+    sections: any,
+    htmlContent: string,
+    tx?: Prisma.TransactionClient // 添加可选的事务参数
+  ) {
+    // 使用传入的事务实例或默认的 prisma 实例
+    const prisma = tx || this.prisma;
+
     try {
-      // 1. 先保存文章
-      console.log('开始保存文章...');
-      const article = await this.prisma.article.create({
+      // 1. 获取下一个序号
+      const lastArticle = await prisma.article.findFirst({
+        orderBy: { order: 'desc' }
+      });
+      const nextOrder = (lastArticle?.order || 0) + 1;
+
+      // 2. 保存文章
+      const article = await prisma.article.create({
         data: {
           title: sections.title,
           content: sections.article,
           contentHtml: htmlContent,
           level: 1,
           category: 'reading',
-          order: await this.getNextArticleOrder(),
+          order: nextOrder,
           knowledgeBaseId: 'default',
           botId: 'default',
         }
       });
-      console.log('文章保存成功，ID:', article.id);
 
-      // 2. 保存练习题
-      console.log('开始保存练习题...');
-      const exercisePromises = sections.exercises.map((question: any) =>
-        this.prisma.question.create({
-          data: {
+      // 3. 批量保存练习题
+      if (sections.exercises?.length) {
+        await prisma.question.createMany({
+          data: sections.exercises.map(question => ({
             articleId: article.id,
             type: 'EXERCISE',
             orderNumber: question.orderNumber,
@@ -571,17 +666,14 @@ export class ArticlesService {
             options: question.options,
             answer: question.answer,
             explanation: question.explanation
-          }
-        })
-      );
-      await Promise.all(exercisePromises);
-      console.log('练习题保存成功');
+          }))
+        });
+      }
 
-      // 3. 保存跟踪练习
-      console.log('开始保存跟踪练习...');
-      const trackingPromises = sections.tracking.map((question: any) =>
-        this.prisma.question.create({
-          data: {
+      // 4. 批量保存跟踪练习
+      if (sections.tracking?.length) {
+        await prisma.question.createMany({
+          data: sections.tracking.map(question => ({
             articleId: article.id,
             type: 'SUPPLEMENTARY',
             orderNumber: question.orderNumber,
@@ -589,15 +681,12 @@ export class ArticlesService {
             options: question.options,
             answer: question.answer,
             explanation: question.explanation
-          }
-        })
-      );
-      await Promise.all(trackingPromises);
-      console.log('跟踪练习保存成功');
+          }))
+        });
+      }
 
-      // 4. 保存评分标准
-      console.log('开始保存评分标准...');
-      await this.prisma.articleScore.create({
+      // 5. 保存评分标准
+      await prisma.articleScore.create({
         data: {
           articleId: article.id,
           totalScore: 100,
@@ -608,15 +697,14 @@ export class ArticlesService {
           }
         }
       });
-      console.log('评分标准保存成功');
 
       return {
         success: true,
         articleId: article.id,
         message: '文章和题目上传成功',
         statistics: {
-          exerciseCount: sections.exercises.length,
-          trackingCount: sections.tracking.length
+          exerciseCount: sections.exercises?.length || 0,
+          trackingCount: sections.tracking?.length || 0
         }
       };
 
@@ -626,6 +714,7 @@ export class ArticlesService {
     }
   }
 
+
   private async getNextArticleOrder(): Promise<number> {
     const lastArticle = await this.prisma.article.findFirst({
       orderBy: { order: 'desc' },
@@ -634,10 +723,5 @@ export class ArticlesService {
     console.log('下一个文章序号:', nextOrder);
     return nextOrder;
   }
-
-
-
-
-
 
 }

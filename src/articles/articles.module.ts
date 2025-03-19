@@ -4,8 +4,13 @@ import { ArticlesService } from './articles.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArticlesController } from './articles.controller';
 import { UploadService } from './upload.service';
+import { PrismaModule } from 'src/prisma/prisma.module';
 
 @Module({
+  imports: [
+    PrismaModule, // 导入 PrismaModule
+    // ... 其他导入
+  ],
   controllers: [ArticlesController],
   providers: [ArticlesService, PrismaService,UploadService],
   exports: [ArticlesService], // 如果其他模块需要使用 ArticlesService

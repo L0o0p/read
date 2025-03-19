@@ -1,20 +1,20 @@
-import { BadRequestException, Body, Controller, Get, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, UploadedFile, UploadedFiles, UseGuards, UseInterceptors } from '@nestjs/common';
 import { ArticlesService } from './articles.service';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import {  Role } from '@prisma/client';
 import { JwtAuthGuard } from 'src/auth/guards/jwtAuthGuard';
 import { RolesGuard } from 'src/auth/guards/rolesGuard';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { UploadService } from './upload.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Controller('article')
 export class ArticlesController {
-  prisma: PrismaService
   constructor(
     private readonly appService: ArticlesService,
-    private readonly uploadService: UploadService
+    private readonly uploadService: UploadService,
+     private readonly prisma: PrismaService, 
   ) { }
 
   @Get('test')
@@ -128,13 +128,63 @@ export class ArticlesController {
       throw new BadRequestException(`上传处理失败: ${error.message}`);
     }
   }
-  // 批量上传
-  // @Post('batch')
-  // @UseInterceptors(FilesInterceptor('files'))
-  // async batchCreateArticles(
-  //   @UploadedFiles() files: Express.Multer.File[],
-  // ) {
-  //   return this.articleService.batchCreate(files);
-  // }
+  
+@Post('upload/batch')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@UseInterceptors(FilesInterceptor('file', 10)) // 最多10个文件
+async batchCreateArticles(
+  @UploadedFiles() files: Express.Multer.File[],
+) {
+  if (!files || files.length === 0) {
+    return {
+      success: false,
+      message: '没有收到文件'
+    };
+  }
+
+  const results = [];
+  const errors = [];
+
+  // 使用 Prisma 事务处理所有文件
+  await this.prisma.$transaction(async (tx) => {
+    for (const file of files) {
+      try {
+        // 1. 处理文件
+        const processedData = await this.uploadService.processDocxUpload(file);
+        const htmlContent = await this.uploadService.convertArticleToHtml(file);
+
+        // 2. 保存到数据库
+        const result = await this.appService.saveAllContent(
+          processedData.sections,
+          htmlContent,
+          tx // 传入事务实例
+        );
+
+        results.push({
+          filename: file.originalname,
+          ...result
+        });
+      } catch (error) {
+        console.error(`处理文件 ${file.originalname} 失败:`, error);
+        errors.push({
+          filename: file.originalname,
+          error: error.message
+        });
+      }
+    }
+  });
+
+  return {
+    success: true,
+    totalProcessed: files.length,
+    successCount: results.length,
+    errorCount: errors.length,
+    results,
+    errors
+  };
+}
+
+
+
 
 }
