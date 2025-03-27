@@ -114,7 +114,7 @@ export class ArticlesController {
         htmlContent = await this.uploadService.convertArticleToHtml(file);
 
         // 2. 上传到dify创建知识库,如果创建成功才保存本地
-        this.ai.createLibrary(processedData.sections)
+        // this.ai.createLibrary(processedData.sections)
 
         // 3. 保存到数据库
         const result = await this.appService.saveAllContent(

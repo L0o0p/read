@@ -1,7 +1,6 @@
-import { Body, Controller, Post, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Post } from '@nestjs/common';
 import { AIService } from './ai.service';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { CreateDocumentByTextDto } from './dto/createDocumentByTextDto';
+import { createAppDto } from './dto/createAppDto';
 
 @Controller('ai')
 export class AIController {
@@ -9,26 +8,11 @@ export class AIController {
 
   // 创建知识库+机器人绑定
   @Post('create')
-  async createLibrary() {
-    return await this.appService.createLibrary('bbbbb');
-  }
-
-  @Post('upload')
-  @UseInterceptors(
-    FileInterceptor('file')
-  ) // 如果需要文件上传
-  @UseInterceptors(FileInterceptor('file'))
-  async UploadFilesToLibrary(
-    @Body() createDto: CreateDocumentByTextDto,
+  async createLibrary(
+    @Body() createAppDto: createAppDto
   ) {
-    const datasetId = '0f1db44c-ca54-4f0f-997d-7bbcc3034959'
-    return await this.appService.createDocumentByText(
-      datasetId,
-      createDto,
-    );
-
+    return this.appService.createBotAndSetLibrary(createAppDto)
   }
-
 
   // // 切换机器人
   // async switchRobot() {
