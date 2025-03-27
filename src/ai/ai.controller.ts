@@ -11,7 +11,7 @@ export class AIController {
   async createLibrary(
     @Body() createAppDto: createAppDto
   ) {
-    return this.appService.createBotAndSetLibrary(createAppDto)
+    return this.appService.createAppAndSetLibrary(createAppDto)
   }
 
   // // 切换机器人

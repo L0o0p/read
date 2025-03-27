@@ -30,16 +30,16 @@ export class AIService {
     }
   }
 
-  async createBotAndSetLibrary(createAppDto: createAppDto) {
+  async createAppAndSetLibrary(createAppDto: createAppDto) {
     const app = createAppDto.app
     const doc = createAppDto.doc
     const datasetId = (await this.createLibraryByArticle(doc)).id
-    const botId = (await this.createBot(app)).id
-    return await this.setLibraryForBot(botId, datasetId)
+    const appId = (await this.createApp(app)).id
+    return await this.setLibraryForApp(appId, datasetId)
   }
 
   // 创建空白聊天机器人
-  async createBot(app: { name: string }) {
+  async createApp(app: { name: string }) {
     const url = `${this.DIFY_URL}/console/api/apps`
     console.log(url);
 
@@ -72,8 +72,8 @@ export class AIService {
   }
 
   // 给机器人绑定知识库
-  async setLibraryForBot(botId: string, datasetId: string) {
-    const url = `${this.DIFY_URL}/console/api/apps/${botId}/model-config`
+  async setLibraryForApp(appId: string, datasetId: string) {
+    const url = `${this.DIFY_URL}/console/api/apps/${appId}/model-config`
     const pre_prompt = `现在你是一个中国小学生的英文阅读理解题目讲解老师，向你提问的用户都是你教授的小学生，请你仅根据提供的英文短文内容以及小学生对你的提问进行题目和语法知识的讲解。但是，需要注意的是:
 1. 你不能直接为小学生们提供太长的翻译服务（一次最多只能翻译文中一个句子），你需要耐心的告诉他们你只能告诉他们大意不能直接提供打断翻译，因为这样不利于提高孩子们的阅读理水平。
 2. 为了便于小学生阅读和理解，你必须回答得言简意赅、格式工整。每次回答得内容尽量不要超过200字（需要引用原文的部分除外），；内容比较多或者是有选项的内容的话最好能够另起一行。
@@ -264,7 +264,7 @@ export class AIService {
   }
 
   // 切换机器人
-  async switchRobot() { }
+  async switchApp() { }
 
   // 发送消息｜创建新的会话
   async sendMessage() { }
