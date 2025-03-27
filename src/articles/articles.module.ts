@@ -5,11 +5,12 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ArticlesController } from './articles.controller';
 import { UploadService } from './upload.service';
 import { PrismaModule } from 'src/prisma/prisma.module';
+import { AIsModule } from 'src/ai/ai.module';
 
 @Module({
   imports: [
     PrismaModule, // 导入 PrismaModule
-    // ... 其他导入
+    AIsModule
   ],
   controllers: [ArticlesController],
   providers: [ArticlesService, PrismaService,UploadService],

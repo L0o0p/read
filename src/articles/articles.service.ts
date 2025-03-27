@@ -1,9 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma, QuestionType } from '@prisma/client';
+import { AIService } from 'src/ai/ai.service';
 @Injectable()
 export class ArticlesService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    private prisma: PrismaService,
+    private ai:AIService
+  ) { }
   getHello(): string {
     return 'Hello World!';
   }
@@ -463,6 +467,8 @@ export class ArticlesService {
         // 答对练习题：进度+20，保持EXERCISE类型
         newProgressPercent = Math.min(progress.progressPercent + 20, 100);
       } else {
+        // 向dify发起答案解析请求
+        this.ai.sendMessage()
         // 答错练习题：进度不变，切换到SUPPLEMENTARY类型
         nextQuestionType = 'SUPPLEMENTARY';
       }

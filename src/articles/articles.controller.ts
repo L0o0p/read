@@ -8,13 +8,15 @@ import { GetUser } from 'src/auth/decorators/get-user.decorator';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { UploadService } from './upload.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { AIService } from 'src/ai/ai.service';
 
 @Controller('article')
 export class ArticlesController {
   constructor(
     private readonly appService: ArticlesService,
     private readonly uploadService: UploadService,
-     private readonly prisma: PrismaService, 
+    private readonly prisma: PrismaService, 
+    private readonly ai: AIService
   ) { }
 
   @Get('test')
@@ -92,6 +94,7 @@ export class ArticlesController {
   @Get('nextArticle')
   @UseGuards(JwtAuthGuard)
   async getNextArticle(@GetUser('id') userId: string): Promise<any> {
+    await this.getStaticResources(userId)
     return await this.getStaticResources(userId)
   }
 
@@ -110,7 +113,10 @@ export class ArticlesController {
         processedData = await this.uploadService.processDocxUpload(file);
         htmlContent = await this.uploadService.convertArticleToHtml(file);
 
-        // 2. 保存到数据库
+        // 2. 上传到dify创建知识库,如果创建成功才保存本地
+        this.ai.createLibrary(processedData.sections)
+
+        // 3. 保存到数据库
         const result = await this.appService.saveAllContent(
           processedData.sections,  // 注意这里需要使用 processedData.sections
           htmlContent
