@@ -468,7 +468,7 @@ export class ArticlesService {
         newProgressPercent = Math.min(progress.progressPercent + 20, 100);
       } else {
         // 向dify发起答案解析请求
-        this.ai.sendMessage()
+        // this.ai.sendMessage()
         // 答错练习题：进度不变，切换到SUPPLEMENTARY类型
         nextQuestionType = 'SUPPLEMENTARY';
       }

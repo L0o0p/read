@@ -10,6 +10,7 @@ export class AIService {
   private DIFY_URL: string;
   private difyDatabaseKey: string;
   private DIFY_API_KEY: string;
+  private DIFY_CHAT_KEY: string;
   constructor(
     private configService: ConfigService,
     private readonly httpService: HttpService
@@ -17,6 +18,7 @@ export class AIService {
     this.DIFY_URL = this.configService.get<string>('DIFY_URL');
     this.difyDatabaseKey = this.configService.get<string>('DIFY_DATABASE_KEY');
     this.DIFY_API_KEY = this.configService.get<string>('DIFY_API_KEY');
+    this.DIFY_CHAT_KEY = this.configService.get<string>('DIFY_CHAT_KEY');
     // 添加调试日志
     console.log('DIFY_URL:', this.DIFY_URL);
     console.log('DIFY_DATABASE_KEY:', this.difyDatabaseKey);
@@ -27,6 +29,37 @@ export class AIService {
     }
     if (!this.difyDatabaseKey) {
       throw new Error('DIFY_DATABASE_KEY is not configured');
+    }
+  }
+
+  // 发送消息｜创建新的会话
+  async sendMessage(message: string, userName: string) {
+    const url = `${this.DIFY_URL}/v1/chat-messages`
+    const options = {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.DIFY_CHAT_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        "inputs": {},
+        "query": message,
+        "response_mode": "blocking",
+        "conversation_id": "",
+        "user": userName,
+        "files": []
+      })
+    };
+    try {
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data; // 返回API响应数据
+    } catch (error) {
+      console.error('Error:', error);
+      throw error; // 重新抛出错误允许调用者处理它
     }
   }
 
@@ -266,6 +299,4 @@ export class AIService {
   // 切换机器人
   async switchApp() { }
 
-  // 发送消息｜创建新的会话
-  async sendMessage() { }
 }

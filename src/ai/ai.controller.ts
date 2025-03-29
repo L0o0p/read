@@ -1,6 +1,8 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { AIService } from './ai.service';
 import { createAppDto } from './dto/createAppDto';
+import { GetUser } from 'src/auth/decorators/get-user.decorator';
+import { JwtAuthGuard } from 'src/auth/guards/jwtAuthGuard';
 
 @Controller('ai')
 export class AIController {
@@ -19,10 +21,14 @@ export class AIController {
   //   return await this.appService.createLibrary();
   // }
 
-  // // 发送消息｜创建新的会话
-  // async sendMessage() {
-  //   return await this.appService.createLibrary();
-  // }
-
+  // 发送消息｜创建新的会话
+  @Post('message')
+  @UseGuards(JwtAuthGuard)
+  async sendMessage(
+    @GetUser('id') userId: string,
+    @Body() message: { message: string }
+  ) {
+    return await this.appService.sendMessage(message.message, userId);
+  }
 
 }
