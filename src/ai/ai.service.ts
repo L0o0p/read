@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 import { HttpException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
 import axios from 'axios';
-import { createAppDto } from './dto/createAppDto';
+import { ConversationResult, createAppDto } from './dto/createAppDto';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class AIService {
@@ -13,7 +13,8 @@ export class AIService {
   private DIFY_CHAT_KEY: string;
   constructor(
     private configService: ConfigService,
-    private readonly httpService: HttpService
+    private readonly prisma: PrismaService,
+
   ) {
     this.DIFY_URL = this.configService.get<string>('DIFY_URL');
     this.difyDatabaseKey = this.configService.get<string>('DIFY_DATABASE_KEY');
@@ -33,7 +34,7 @@ export class AIService {
   }
 
   // 发送消息｜创建新的会话
-  async sendMessage(message: string, userName: string) {
+  async sendMessage(message: string, userName: string, conversation_id?: string) {
     const url = `${this.DIFY_URL}/v1/chat-messages`
     const options = {
       method: 'POST',
@@ -45,7 +46,7 @@ export class AIService {
         "inputs": {},
         "query": message,
         "response_mode": "blocking",
-        "conversation_id": "",
+        "conversation_id": conversation_id ? conversation_id : "",
         "user": userName,
         "files": []
       })
@@ -62,6 +63,68 @@ export class AIService {
       throw error; // 重新抛出错误允许调用者处理它
     }
   }
+
+  async getCurrentConversationId(userId: string): Promise<ConversationResult> {
+    try {
+      const progress = await this.prisma.readingProgress.findFirst({
+        where: {
+          userId,
+        },
+        orderBy: {
+          lastReadAt: 'desc',
+        },
+        select: {
+          conversationId: true,
+        },
+      });
+
+      return {
+        success: true,
+        message: '成功获取会话ID',
+        conversationId: progress?.conversationId ?? null
+      };
+    } catch (error) {
+      console.error('Error getting conversationId:', error);
+      throw error;
+    }
+  }
+
+  async updateConversationId(userId: string, conversationId: string): Promise<ConversationResult> {
+    try {
+      const latestProgress = await this.prisma.readingProgress.findFirst({
+        where: {
+          userId,
+        },
+        orderBy: {
+          lastReadAt: 'desc',
+        },
+      });
+
+      if (!latestProgress) {
+        throw new Error('No reading progress found for user');
+      }
+
+      const updated = await this.prisma.readingProgress.update({
+        where: {
+          id: latestProgress.id,
+        },
+        data: {
+          conversationId,
+          lastReadAt: new Date(),
+        },
+      });
+      return {
+        success: true,
+        message: '成功更新会话ID',
+        conversationId: updated.conversationId,
+      };
+    } catch (error) {
+      console.error('Error updating conversationId:', error);
+      throw error;
+    }
+  }
+
+
 
   async createAppAndSetLibrary(createAppDto: createAppDto) {
     const app = createAppDto.app

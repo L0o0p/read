@@ -6,7 +6,9 @@ import { JwtAuthGuard } from 'src/auth/guards/jwtAuthGuard';
 
 @Controller('ai')
 export class AIController {
-  constructor(private readonly appService: AIService) { }
+  constructor(
+    private readonly appService: AIService,
+  ) { }
 
   // 创建知识库+机器人绑定
   @Post('create')
@@ -28,7 +30,14 @@ export class AIController {
     @GetUser('id') userId: string,
     @Body() message: { message: string }
   ) {
-    return await this.appService.sendMessage(message.message, userId);
+    const getConversantionIdResult = await this.appService.getCurrentConversationId(userId)
+    if (!getConversantionIdResult) return
+    const feedback = await this.appService.sendMessage(message.message, userId, getConversantionIdResult.conversationId)
+    const updateConversantionIdResult = await this.appService.updateConversationId(userId, feedback.conversation_id)
+    return {
+      getConversantionIdResult: getConversantionIdResult,
+      feedback: feedback,
+      updateConversantionIdResult: updateConversantionIdResult
+    }
   }
-
 }

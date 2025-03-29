@@ -73,6 +73,7 @@ model ReadingProgress {
   articleId       String
   article         Article  @relation(fields: [articleId], references: [id])
   answers         AnswerRecord[]
+  conversationId String?  // 添加 Dify 对话 ID
 
   @@unique([userId, articleId])
   @@index([userId, lastReadAt])

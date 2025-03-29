@@ -9,7 +9,7 @@ import { HttpModule } from '@nestjs/axios';
 @Module({
   imports: [
     PrismaModule, // 导入 PrismaModule
-    HttpModule
+    HttpModule,
   ],
   controllers: [AIController],
   providers: [AIService, PrismaService],

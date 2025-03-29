@@ -72,7 +72,78 @@ export class ArticlesService {
 
     // 3. 如果没有进度或会话，创建新的阅读会话和进度
     if (!lastProgress || !currentSession) {
-      // ... 创建新进度的代码保持不变 ...
+      // 获取第一篇文章
+      const firstArticle = await this.prisma.article.findFirst({
+        orderBy: { order: 'asc' },
+        include: {
+          questions: {
+            orderBy: {
+              orderNumber: 'asc'
+            }
+          }
+        }
+      });
+
+      if (!firstArticle) {
+        throw new BadRequestException('没有可用的文章');
+      }
+
+      // 创建新的阅读会话
+      const newSession = await this.prisma.readingSession.create({
+        data: {
+          userId,
+          currentRound: 1,
+          currentArticleId: firstArticle.id,
+          currentQuestionIndex: 1,
+          currentQuestionType: 'EXERCISE',
+          status: 'IN_PROGRESS',
+          rounds: {
+            create: {
+              roundNumber: 1,
+            }
+          }
+        },
+        include: {
+          rounds: true,
+          currentArticle: true
+        }
+      });
+
+      // 创建新的阅读进度
+      const newProgress = await this.prisma.readingProgress.create({
+        data: {
+          userId,
+          articleId: firstArticle.id,
+          progressPercent: 0,
+        },
+        include: {
+          article: {
+            include: {
+              questions: {
+                orderBy: {
+                  orderNumber: 'asc'
+                }
+              }
+            }
+          }
+        }
+      });
+
+      return {
+        status: 'IN_PROGRESS',
+        ...newProgress,
+        currentQuestionInfo: firstArticle.questions[0] ? {
+          id: firstArticle.questions[0].id,
+          questionNumber: firstArticle.questions[0].orderNumber,
+          questionType: firstArticle.questions[0].type,
+          content: firstArticle.questions[0].content,
+          options: firstArticle.questions[0].options,
+          totalQuestions: firstArticle.questions.length,
+          remainingExercises: firstArticle.questions.filter(q => q.type === 'EXERCISE').length,
+          remainingSupplementary: firstArticle.questions.filter(q => q.type === 'SUPPLEMENTARY').length
+        } : null,
+        currentSession: newSession
+      };
     }
 
     // 4. 检查是否所有轮次都完成
