@@ -44,7 +44,32 @@ async function main() {
             role: Role.STUDENT,
         },
     });
+    // 首先在数据库创建机器人数据
+    const bots = [
+        {
+            name: 'sgytest Bot',
+            chatKey: 'app-TkuEbnFy5sIdx1E901jvX8v9',
+            description: 'sgy测试'
+        },
+        {
+            name: 'test Bot',
+            chatKey: 'app-zk6PfXvt8lEYgpQTFFs0BvHW',
+            description: 'test'
+        },
+    ];
 
+    // 创建机器人并存储它们的ID
+    const createdBots = await Promise.all(
+        bots.map(bot =>
+            prisma.bot.upsert({
+                where: { chatKey: bot.chatKey },
+                update: bot,
+                create: bot
+            })
+        )
+    );
+
+    console.log('Created bots:', createdBots);
     // 创建文章
     const article1 = await prisma.article.create({
         data: {
@@ -55,7 +80,7 @@ async function main() {
             level: 1,
             category: 'Basic',
             knowledgeBaseId: 'kb_001',
-            botId: 'bot_001',
+            botId: createdBots[0].id,
         },
     });
 
@@ -68,7 +93,7 @@ async function main() {
             level: 2,
             category: 'Intermediate',
             knowledgeBaseId: 'kb_002',
-            botId: 'bot_002',
+            botId: createdBots[1].id,
         },
     });
 
@@ -211,6 +236,30 @@ async function main() {
             useCount: 10,
         },
     });
+
+    // 2. 更新文章数据，添加机器人关联
+    // 这里假设每篇文章按顺序循环使用这些机器人
+    const updatedArticles = [article1, article2].map((article, index) => ({
+        ...article,
+        botId: createdBots[index % createdBots.length].id  // 循环分配机器人
+    }));
+
+    // 创建或更新文章
+    for (const article of updatedArticles) {
+        await prisma.article.upsert({
+            where: { order: article.order },
+            update: {
+                ...article,
+                botId: article.botId
+            },
+            create: {
+                ...article,
+                botId: article.botId
+            }
+        });
+    }
+
+    console.log('Articles updated with bot associations');
 
     console.log('Seed data created successfully');
 }

@@ -44,7 +44,8 @@ model Article {
   level          Int
   category       String
   knowledgeBaseId String  // Dify知识库ID
-  botId          String   // Dify机器人ID
+  botId          String   // 改为外键关联
+  bot            Bot      @relation(fields: [botId], references: [id])  // 添加关联
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -60,6 +61,20 @@ model Article {
   ArticleScore ArticleScore[]
   AIInteraction AIInteraction[]
   ReadingSession ReadingSession[]
+}
+
+// 新增 Bot 模型
+model Bot {
+  id          String   @id @default(uuid()) //"cdb5527d-db41-4337-92dd-14cb2847b4cc"
+  name        String  // "sgy测试"
+  chatKey     String   @unique  // Dify chat key "app-TkuEbnFy5sIdx1E901jvX8v9"
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // 关联
+  articles    Article[]
+  AIInteractions AIInteraction[]  // 可选：如果需要记录具体是哪个机器人的交互
 }
 
 // 阅读进度
@@ -79,6 +94,7 @@ model ReadingProgress {
   @@index([userId, lastReadAt])
   StudyRound StudyRound[]
   AIInteraction AIInteraction[]
+
 }
 
 // 对话记录
@@ -258,6 +274,8 @@ model AIInteraction {
 
   @@index([userId, featureType, createdAt])
   @@index([progressId, featureType])
+    botId       String   // 添加具体是哪个机器人的交互
+  bot         Bot      @relation(fields: [botId], references: [id])
 }
 
 // AI使用统计

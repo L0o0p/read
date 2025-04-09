@@ -10,7 +10,6 @@ export class AIService {
   private DIFY_URL: string;
   private difyDatabaseKey: string;
   private DIFY_API_KEY: string;
-  private DIFY_CHAT_KEY: string;
   constructor(
     private configService: ConfigService,
     private readonly prisma: PrismaService,
@@ -19,7 +18,7 @@ export class AIService {
     this.DIFY_URL = this.configService.get<string>('DIFY_URL');
     this.difyDatabaseKey = this.configService.get<string>('DIFY_DATABASE_KEY');
     this.DIFY_API_KEY = this.configService.get<string>('DIFY_API_KEY');
-    this.DIFY_CHAT_KEY = this.configService.get<string>('DIFY_CHAT_KEY');
+
     // 添加调试日志
     console.log('DIFY_URL:', this.DIFY_URL);
     console.log('DIFY_DATABASE_KEY:', this.difyDatabaseKey);
@@ -34,12 +33,30 @@ export class AIService {
   }
 
   // 发送消息｜创建新的会话
-  async sendMessage(message: string, userName: string, conversation_id?: string) {
+  async message(message: string, userId: string) {
+    const chatKey = (await this.getCurrentBot(userId)).data.bot.chatKey
+
+    const getConversantionIdResult = await this.getCurrentConversationId(userId); if (!getConversantionIdResult) return
+    const feedback = await this.sendMessage(message, userId, chatKey, getConversantionIdResult.conversationId,)
+    const updateConversantionIdResult = await this.updateConversationId(userId, feedback.conversation_id)
+    return {
+      getConversantionIdResult: getConversantionIdResult,
+      feedback: feedback,
+      updateConversantionIdResult: updateConversantionIdResult
+    }
+  }
+
+  async sendMessage(
+    message: string,
+    userName: string,
+    chatKey: string,
+    conversation_id?: string,
+  ) {
     const url = `${this.DIFY_URL}/v1/chat-messages`
     const options = {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.DIFY_CHAT_KEY}`,
+        'Authorization': `Bearer ${chatKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -123,8 +140,6 @@ export class AIService {
       throw error;
     }
   }
-
-
 
   async createAppAndSetLibrary(createAppDto: createAppDto) {
     const app = createAppDto.app
@@ -359,7 +374,66 @@ export class AIService {
     }
   }
 
-  // 切换机器人
-  async switchApp() { }
+  async getCurrentBot(userId: string) {
+    // 1. 查找用户的活跃阅读会话
+    const activeSession = await this.prisma.readingSession.findUnique({
+      where: {
+        userId_status: {
+          userId,
+          status: 'IN_PROGRESS'
+        }
+      },
+      include: {
+        currentArticle: {
+          include: {
+            bot: true
+          }
+        }
+      }
+    });
+
+    if (!activeSession || !activeSession.currentArticle) {
+      return {
+        success: false,
+        error: 'No active reading session found'
+      };
+    }
+
+    // 2. 获取当前进度信息
+    const progress = await this.prisma.readingProgress.findUnique({
+      where: {
+        userId_articleId: {
+          userId,
+          articleId: activeSession.currentArticleId
+        }
+      }
+    });
+
+    return {
+      success: true,
+      data: {
+        bot: {
+          id: activeSession.currentArticle.bot.id,
+          name: activeSession.currentArticle.bot.name,
+          chatKey: activeSession.currentArticle.bot.chatKey,
+        },
+        article: {
+          id: activeSession.currentArticle.id,
+          title: activeSession.currentArticle.title,
+        },
+        session: {
+          id: activeSession.id,
+          currentRound: activeSession.currentRound,
+          currentQuestionIndex: activeSession.currentQuestionIndex,
+          currentQuestionType: activeSession.currentQuestionType,
+        },
+        progress: {
+          conversationId: progress?.conversationId,
+          progressPercent: progress?.progressPercent || 0,
+        }
+      }
+    };
+  }
+
 
 }

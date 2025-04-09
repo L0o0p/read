@@ -30,14 +30,9 @@ export class AIController {
     @GetUser('id') userId: string,
     @Body() message: { message: string }
   ) {
-    const getConversantionIdResult = await this.appService.getCurrentConversationId(userId)
-    if (!getConversantionIdResult) return
-    const feedback = await this.appService.sendMessage(message.message, userId, getConversantionIdResult.conversationId)
-    const updateConversantionIdResult = await this.appService.updateConversationId(userId, feedback.conversation_id)
-    return {
-      getConversantionIdResult: getConversantionIdResult,
-      feedback: feedback,
-      updateConversantionIdResult: updateConversantionIdResult
-    }
+    return this.appService.message(message.message, userId)
   }
+
+  // 更换要对话的机器人
+  // 机器人信息跟article绑定，所以article切换时候会自动切换，不需要额外方法
 }
